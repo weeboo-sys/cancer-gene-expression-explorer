@@ -1,104 +1,102 @@
 import os
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 
 # ==========================
-# LOAD DATA (ROBUST PATH)
+# LOAD DATA SAFELY
 # ==========================
 
 file_path = os.path.join(
     os.path.dirname(__file__),
     "data",
-    "sample_data.csv"
+    "large_cancer_gene_expression.csv"   
 )
 
 df = pd.read_csv(file_path)
 
-
-# ==========================
-# BASIC OVERVIEW
-# ==========================
-
-print("\nDATA PREVIEW")
+print("Original shape:", df.shape)
 print(df.head())
 
-print("\nSHAPE (rows, columns)")
-print(df.shape)
 
-print("\nCOLUMN INFO")
-print(df.info())
+# ==========================
+# AUTO-DETECT FORMAT
+# ==========================
 
-print("\nMISSING VALUES")
-print(df.isnull().sum())
+# Case A: Sample column exists
+if "Sample" in df.columns:
+    df = df.set_index("Sample")
 
-print("\nSUMMARY STATISTICS")
-print(df.describe())
+# Case B: first column is genes or IDs
+elif df.columns[0].lower() in ["gene", "id", "unnamed: 0"]:
+    df = df.set_index(df.columns[0])
 
 
 # ==========================
-# GENE ANALYSIS
+# KEEP ONLY NUMERIC DATA
 # ==========================
 
-gene_means = df.drop(columns=["Sample"]).mean()
+df = df.apply(pd.to_numeric, errors="coerce")
 
-print("\nAVERAGE GENE EXPRESSION")
-print(gene_means)
-
-
-def most_active_gene(row):
-    genes = row.drop("Sample")
-    return genes.idxmax()
-
-
-df["Most_Active_Gene"] = df.apply(most_active_gene, axis=1)
-
-print("\nMOST ACTIVE GENE PER SAMPLE")
-print(df[["Sample", "Most_Active_Gene"]])
-
-
-print("\nGENE INSIGHTS")
-print("Highest average expression gene:", gene_means.idxmax())
-print("Lowest average expression gene:", gene_means.idxmin())
+print("\nCleaned data shape:", df.shape)
 
 
 # ==========================
-# BAR PLOT
+# BASIC ANALYSIS
 # ==========================
 
-df_plot = df.set_index("Sample")
+gene_means = df.mean(axis=0)
 
-ax = df_plot.drop(
-    columns=["Most_Active_Gene"],
-    errors="ignore"
-).plot(kind="bar")
+print("\nTop expressed genes:")
+print(gene_means.sort_values(ascending=False).head())
 
-ax.set_title("Gene Expression Across Samples")
-ax.set_ylabel("Expression Level")
-plt.xticks(rotation=0)
+print("\nLowest expressed genes:")
+print(gene_means.sort_values().head())
 
+
+# ==========================
+# MOST ACTIVE GENE PER SAMPLE
+# ==========================
+
+if df.shape[0] > 1:
+
+    most_active = df.idxmax(axis=1)
+
+    result = pd.DataFrame({
+        "Most_Active_Gene": most_active
+    })
+
+    print("\nMost active gene per sample:")
+    print(result.head())
+
+
+# ==========================
+# BAR PLOT (GENE MEANS)
+# ==========================
+
+plt.figure(figsize=(10, 4))
+
+gene_means.sort_values(ascending=False).head(10).plot(kind="bar")
+
+plt.title("Top 10 Expressed Genes")
+plt.ylabel("Expression Level")
 plt.tight_layout()
 plt.show()
 
 
 # ==========================
-# HEATMAP 
+# HEATMAP (REAL DATA SAFE)
 # ==========================
 
-df_heat = df.set_index("Sample")
-
-# keep only numeric columns (IMPORTANT FIX)
-df_heat = df_heat.select_dtypes(include="number")
-
-plt.figure(figsize=(8, 5))
+plt.figure(figsize=(10, 6))
 
 sns.heatmap(
-    df_heat,
-    annot=True,
+    df.iloc[:, :20],   # limit for readability
     cmap="viridis"
 )
 
-plt.title("Cancer Gene Expression Heatmap")
+plt.title("Gene Expression Heatmap (Subset)")
 plt.tight_layout()
 plt.show()
